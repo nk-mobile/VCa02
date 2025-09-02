@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ипотечный калькулятор</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Анимированный фон -->
+    <div class="background">
+        <div class="floating-shapes">
+            <div class="shape shape-1"></div>
+            <div class="shape shape-2"></div>
+            <div class="shape shape-3"></div>
+            <div class="shape shape-4"></div>
+            <div class="shape shape-5"></div>
+            <div class="shape shape-6"></div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="calculator-card baroque">
+            <div class="header">
+                <h1>Ипотечный калькулятор</h1>
+                <p>Рассчитайте параметры вашего кредита</p>
+            </div>
+
+            <form id="mortgage-form" class="form">
+                <div class="input-group">
+                    <label for="loan-amount">Сумма недвижимости (₽)</label>
+                    <input type="number" id="loan-amount" name="loan_amount" 
+                           placeholder="3 000 000" min="1" step="1" inputmode="numeric" pattern="[0-9]*" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="down-payment">Первоначальный взнос (₽)</label>
+                    <input type="number" id="down-payment" name="down_payment" 
+                           placeholder="600 000" min="0" step="1" inputmode="numeric" pattern="[0-9]*" required>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-group grow">
+                        <label for="years">Срок кредита (лет)</label>
+                        <input type="number" id="years" name="years" 
+                               placeholder="20" min="1" max="50" required>
+                    </div>
+                    <div class="input-group grow" id="interest-group">
+                        <label for="interest-rate">Процентная ставка (%)</label>
+                        <input type="number" id="interest-rate" name="interest_rate" 
+                               placeholder="7.5" min="0" max="100" step="0.01">
+                    </div>
+                </div>
+
+                <div class="controls-row">
+                    <button type="button" id="installment-toggle" class="outline-btn" aria-pressed="false">Рассрочка</button>
+                    <div class="early-block">
+                        <div class="input-group compact">
+                            <label for="prepayment-amount">Досрочный платёж (₽)</label>
+                            <input type="number" id="prepayment-amount" name="prepayment_amount" placeholder="0" min="0" step="1">
+                        </div>
+                        <div class="input-group compact">
+                            <label for="prepayment-month">Месяц</label>
+                            <input type="number" id="prepayment-month" name="prepayment_month" placeholder="12" min="1">
+                        </div>
+                        <div class="input-group compact">
+                            <label for="prepayment-strategy">Стратегия</label>
+                            <select id="prepayment-strategy" name="prepayment_strategy">
+                                <option value="reduce_term">Уменьшить срок</option>
+                                <option value="reduce_payment">Уменьшить платёж</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="actions-row">
+                    <button type="submit" class="calculate-btn">
+                        <span>Рассчитать</span>
+                        <div class="btn-loader"></div>
+                    </button>
+                    <button type="button" id="export-btn" class="outline-btn">Сохранить в Excel</button>
+                </div>
+            </form>
+
+            <div id="results" class="results hidden">
+                <h2>Результаты расчета</h2>
+                
+                <div class="result-grid">
+                    <div class="result-item">
+                        <div class="result-label">Ежемесячный платеж</div>
+                        <div class="result-value" id="monthly-payment">—</div>
+                    </div>
+                    
+                    <div class="result-item">
+                        <div class="result-label">Тело кредита (после взноса)</div>
+                        <div class="result-value" id="principal">—</div>
+                    </div>
+
+                    <div class="result-item">
+                        <div class="result-label">Общая сумма выплат по кредиту</div>
+                        <div class="result-value" id="total-amount">—</div>
+                    </div>
+                    
+                    <div class="result-item highlight">
+                        <div class="result-label">Переплата по процентам</div>
+                        <div class="result-value" id="overpayment">—</div>
+                    </div>
+
+                    <div class="result-item">
+                        <div class="result-label">Итого с учетом первоначального взноса</div>
+                        <div class="result-value" id="cash-total">—</div>
+                    </div>
+                </div>
+
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                    <div class="progress-labels">
+                        <span>Тело кредита</span>
+                        <span>Переплата</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Блок графиков и таблицы -->
+        <div class="calculator-card baroque secondary" id="chart-table-block">
+            <div class="header minor">
+                <h2>График расчётов</h2>
+                <p>Динамика основного долга и процентов по месяцам</p>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="amortization-chart" height="110"></canvas>
+            </div>
+            <div class="table-wrapper">
+                <table id="schedule-table" class="schedule-table">
+                    <thead>
+                        <tr>
+                            <th>Месяц</th>
+                            <th>Платёж</th>
+                            <th>Проценты</th>
+                            <th>Основной долг</th>
+                            <th>Остаток</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="error" class="error hidden">
+            <div class="error-icon">⚠️</div>
+            <div class="error-message" id="error-message"></div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html> 
